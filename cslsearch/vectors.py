@@ -3,8 +3,81 @@ Module containing operations on vector-like objects.
 
 """
 from cslsearch import utils
-from itertools import permutations
+from itertools import permutations, combinations
 import numpy as np
+
+
+def find_positive_int_vecs(search_size, dim=3):
+    """
+    Find arbitrary-dimension positive integer vectors which are 
+    non-collinear whose components are less than or equal to a 
+    given search size. Vectors with zero components are not included.
+
+    Non-collinear here means no two vectors are related by a scaling factor.
+
+    Parameters
+    ----------
+    search_size : int
+        Positive integer which is the maximum vector component
+    dim : int
+        Dimension of vectors to search.
+
+    Returns
+    -------
+    ndarray of shape (N, `dim`)     
+
+    """
+
+    # Generate trial vectors as a grid of integer vectors
+    si = np.arange(1, search_size + 1)
+    trials = np.vstack(np.meshgrid(*(si,) * dim)).reshape((dim, -1)).T
+
+    # Multiply each trial vector by each possible integer up to
+    # `search_size`:
+    sr = si.reshape(-1, 1, 1)
+    p = trials * sr
+
+    # Combine trial vectors and their associated scaled vectors:
+    pv = np.vstack(p)
+
+    # Find unique vectors. The inverse indices`uinv` indexes
+    # the set of unique vectors`u` to generate the original array `pv`:
+    u, uinv = np.unique(pv, axis=0, return_inverse=True)
+
+    # For a given set of (anti-)parallel vectors, we want the smallest, so get
+    # their relative magnitudes. This is neccessary since `np.unique` does not
+    # return vectors sorted in a sensible way if there are negative components.
+    # (But we do we have negative components here?)
+    u_mag = np.sum(u**2, axis=1)
+
+    # Get the magnitudes of just the directionally-unique vectors:
+    uinv_mag = u_mag[uinv]
+
+    # Reshape the magnitudes to allow sorting for a given scale factor:
+    uinv_mag_rs = np.reshape(uinv_mag, (search_size, -1))
+
+    # Get the indices which sort the trial vectors
+    mag_srt_idx = np.argsort(uinv_mag_rs, axis=0)
+
+    # Reshape the inverse indices
+    uinv_rs = np.reshape(uinv, (1 * search_size, -1))
+
+    # Sort the inverse indices by their corresponding vector magnitudes,
+    # for each scale factor:
+    col_idx = np.tile(np.arange(uinv_rs.shape[1]), (search_size, 1))
+    uinv_rs_srt = uinv_rs[mag_srt_idx, col_idx]
+
+    # Only keep inverse indices in first row which are not in any other row.
+    # First row indexes lowest magnitude vectors for each scale factor.
+    idx = np.setdiff1d(uinv_rs_srt[0], uinv_rs_srt[1:])
+
+    # Sort kept vectors by magnitude
+    final_mags = u_mag[idx]
+    final_mags_idx = np.argsort(final_mags)
+
+    ret = u[idx][final_mags_idx]
+
+    return ret
 
 
 def find_non_parallel_int_vecs(search_size, dim=3, tile=False):
@@ -12,86 +85,89 @@ def find_non_parallel_int_vecs(search_size, dim=3, tile=False):
     Find arbitrary-dimension integer vectors which are non-collinear, whose
     components are less than or equal to a given search size.
 
-    Returned vectors are sorted by magnitude. The zero vector is excluded.
+    Non-collinear here means no two vectors are related by a scaling factor.
+    The zero vector is excluded.
 
     Parameters
     ----------
     search_size : int
-        Positive integer which is the maximum vector component. Memory usage 
-        scales quadratically(?) with search_size.
+        Positive integer which is the maximum vector component.
     dim : int
         Dimension of vectors to search.
     tile : bool, optional
         If True, the half-space of dimension `dim` is filled with vectors,
-        otherwise just the positive vector components are considered. The
+        otherwise just the positive vector components are considered. The 
         resulting vector set will still contain only non-collinear vectors.
 
     Returns
     -------
     ndarray of shape (N, `dim`)
+        Vectors are not globally ordered.
+
+    Notes
+    -----
+    Searching for vectors with `search_size` of 100 uses about 9 GB of memory.
 
     """
 
-    ss_err_msg = '`search_size` must be an integer greater than zero.'
-    if search_size < 1:
-        raise ValueError(ss_err_msg)
+    # Find all non-parallel positive integer vectors which have no
+    # zero components:
+    ps_vecs = find_positive_int_vecs(search_size, dim)
+    ret = ps_vecs
 
-    try:
-        si = np.arange(search_size + 1, dtype=int)
-    except TypeError:
-        print(ss_err_msg)
+    # If requested, tile the vectors such that they occupy a half-space:
+    if tile and dim > 1:
 
-    trials = np.vstack(np.meshgrid(*(si,) * dim)).reshape((dim, -1)).T
+        # Start with the positive vectors
+        tile_base = ps_vecs
 
-    # Remove zero vector
-    trials = trials[1:]
-
-    sr = si[1:].reshape(-1, 1, 1)
-    p = trials * sr
-    pv = np.vstack(p)
-
-    # `uinv` indexes `u` to generate the original array pv
-    u, uinv = np.unique(pv, axis=0, return_inverse=True)
-
-    # For a given set of (anti-)parallel vectors, we want the smallest
-    u_mag = np.sum(u**2, axis=1)
-    uinv_mag = u_mag[uinv]
-    uinv_mag_rs = np.reshape(uinv_mag, (search_size, -1))
-    mag_srt_idx = np.argsort(uinv_mag_rs, axis=0)
-    uinv_rs = np.reshape(uinv, (1 * search_size, -1))
-
-    tt = np.tile(np.arange(uinv_rs.shape[1]), (search_size, 1))
-    uinv_rs_srt = uinv_rs[mag_srt_idx, tt]
-
-    idx = np.setdiff1d(uinv_rs_srt[0], uinv_rs_srt[1:])
-
-    final_mags = u_mag[idx]
-    final_mags_idx = np.argsort(final_mags)
-
-    ret = u[idx][final_mags_idx]
-
-    if tile:
-
-        # Don't want to repeat vectors like [1, 0, 0], [0, 1, 0], [0, 0, 1],
-        # so skip the first `dim` vectors:
-        tile_base = ret[dim:]
-
-        # For tiling, there will a total of 2^(dim-1) permutations of the
-        # original vector set. `dim` - 1 since we want to fill a half space.
+        # For tiling, there will a total of 2^(`dim` - 1) permutations of the
+        # original vector set. (`dim` - 1) since we want to fill a half space.
         i = np.ones(dim - 1, dtype=int)
         t = np.triu(i, k=1) + -1 * np.tril(i)
 
-        perms_partial = np.array(list(
-            set([j for i in t for j in list(permutations(i))])))
-        perms = np.hstack([
-            np.ones((2**(dim - 1) - 1, 1), dtype=int), perms_partial])
+        # Get permutation of +/- 1 factors to tile initial vectors into half-space
+        perms_partial_all = [j for i in t for j in list(permutations(i))]
+        perms_partial = np.array(list(set(perms_partial_all)))
+
+        perms_first_col = np.ones((2**(dim - 1) - 1, 1), dtype=int)
+        perms_first_row = np.ones((1, dim), dtype=int)
+        perms_non_eye = np.hstack([perms_first_col, perms_partial])
+        perms = np.vstack([perms_first_row, perms_non_eye])
+
         perms_rs = perms[:, np.newaxis]
         tiled = tile_base * perms_rs
+        ret = np.vstack(tiled)
 
-        # Reshape to maintain order by magnitude
-        tiled_all = np.vstack([tile_base[np.newaxis], tiled])
-        tiled_all_rs = np.vstack(np.swapaxes(tiled_all, 0, 1))
-        ret = np.vstack([ret[:dim + 1], tiled_all_rs])
+    # Add in the vectors which are contained within a subspace of dimension
+    # (`dim` - 1) on the principle axes. I.e. vectors with zero components:
+    if dim > 1:
+
+        # Recurse through each (`dim` - 1) dimension subspace:
+        low_dim = dim - 1
+        vecs_lower = find_non_parallel_int_vecs(search_size, low_dim, tile)
+
+        # Raise vectors to current dimension with a zero component. The first
+        # (`dim` - 1) vectors (of the form [1, 0, ...] should be considered
+        # separately, else they will be repeated.
+        principle = np.eye(dim, dtype=int)
+        non_prcp = vecs_lower[low_dim:]
+
+        if len(non_prcp) > 0:
+
+            edges_shape = (dim, non_prcp.shape[0], non_prcp.shape[1] + 1)
+            vecs_edges = np.zeros(edges_shape, dtype=int)
+            edges_idx = list(combinations(list(range(dim)), low_dim))
+
+            for i in range(dim):
+                vecs_edges[i][:, edges_idx[i]] = non_prcp
+
+            vecs_edges = np.vstack([principle, *vecs_edges])
+
+        else:
+            vecs_edges = principle
+
+        ret = np.vstack([vecs_edges, ret])
 
     return ret
 

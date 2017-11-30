@@ -21,9 +21,26 @@ class FindNonParallelIntVecsTestCase(unittest.TestCase):
             with self.assertRaises(ValueError):
                 vectors.find_non_parallel_int_vecs(i)
 
-    def test_search_size_three_non_parallel(self):
-        """Test for a search size of three, found vectors are non parallel."""
-        v = vectors.find_non_parallel_int_vecs(3)
+    def test_non_parallel_tiled(self):
+        """
+        Test for a search size of fifteen with `tile` True, found vectors are 
+        non (anti-)parallel.
+
+        """
+        v = vectors.find_non_parallel_int_vecs(15, tile=True)
+
+        # Find cross product of each vector with all vectors
+        cross_self = np.cross(v, v[:, np.newaxis])
+        cross_self_zero = np.all(cross_self == 0, axis=2)
+        self.assertEqual(np.max(np.sum(cross_self_zero, axis=1)), 1)
+
+    def test_non_parallel(self):
+        """
+        Test for a search size of fifteen with `tile` False found vectors are
+        non (anti-)parallel.
+
+        """
+        v = vectors.find_non_parallel_int_vecs(15, tile=False)
 
         # Find cross product of each vector with all vectors
         cross_self = np.cross(v, v[:, np.newaxis])
