@@ -178,6 +178,43 @@ def find_non_parallel_int_vecs(search_size, dim=3, tile=False):
     return ret
 
 
+def get_parallel_idx(vecs_a, vecs_b):
+    """
+    Find which vectors in an array of vectors are (anti-)parallel to which
+    vectors in another array of vectors, according to their cross product.
+
+    Parameters
+    ----------
+    vecs_a : ndarray of shape (3, N)
+        Array of column vectors
+    vecs_b : ndarray of shape (3, M)
+        Array of column vectors
+
+    Returns
+    -------
+    dict of (int: ndarray of int of shape (P,))
+        Returned dict has keys which index `vecs_a` and values which are
+        integer arrays which index `vecs_b`.
+
+    """
+
+    ret = {}
+    for vec_a_idx, vec_a in enumerate(vecs_a.T):
+
+        vec_a = vec_a[:, np.newaxis]
+        vec_a_cross = np.cross(vec_a, vecs_b, axis=0)
+
+        is_parallel = np.all(np.isclose(vec_a_cross, 0.0), axis=0)
+        parallel_idx = np.where(is_parallel)[0]
+
+        if parallel_idx.size:
+            ret.update({
+                vec_a_idx: parallel_idx
+            })
+
+    return ret
+
+
 def get_equal_indices(arr, scale_factors=None):
     """
     Return the indices along the first dimension of an array which index equal
