@@ -32,6 +32,14 @@ def prt(obj, name, slc=None):
         fmts = (name, obj.shape, slc_str,
                 obj.dtype, obj[slc] if slc is not None else obj)
 
+    elif isinstance(obj, dict):
+
+        fmt_str = ''
+        fmts = []
+        for k, v in sorted(obj.items()):
+            fmt_str += '{}: {}\n'
+            fmts.extend([k, v])
+
     else:
 
         fmt_str = '{} ({}): \n{}\n'
