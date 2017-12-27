@@ -3,10 +3,10 @@ Module for searching for CSL vectors within a given lattice system.
 
 """
 import sys
-import numpy as np
 from itertools import combinations
+import numpy as np
 from cslsearch.utils import prt
-from cslsearch import vectors
+from vecmaths import vectors
 
 
 def main(search_size):
@@ -26,7 +26,7 @@ def main(search_size):
     Column vectors operated on by pre-multiplication are mostly used.
 
     TODO:
-        - Improve get_equal_indices. Can we simplify return?
+        - Improve `vecmaths.vectors.get_equal_indices`. Can we simplify return?
 
     """
 
