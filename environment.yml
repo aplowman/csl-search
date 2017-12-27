@@ -1,7 +1,7 @@
 name: csl-search
 dependencies:
-	- python=3.6
-	- pip
-	- pylint
-	- ipykernel
-  - rope
+- python=3.6
+- pip
+- pylint
+- ipykernel
+- rope
