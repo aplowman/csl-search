@@ -99,11 +99,11 @@ def main(search_size):
         # Find rotation angle for each vector pair about this axis:
         rotax_i = trial[:, rotax_idx_i][:, np.newaxis]
         rotax_unit_i = rotax_i / np.linalg.norm(rotax_i)
-        trial_pair_i = trial_pair[:, :, trial_pair_idx_i]  # Not needed
+        # trial_pair_i = trial_pair[:, :, trial_pair_idx_i]  # Not needed
 
         prt(rotax_i, 'rotax_i')
         prt(rotax_unit_i, 'rotax_unit_i')
-        prt(trial_pair_i, 'trial_pair_i')
+        # prt(trial_pair_i, 'trial_pair_i')
 
         # Get cross and dot products (previously computed):
         tp_i_cross = tp_rotax[:, trial_pair_idx_i]
@@ -123,7 +123,59 @@ def main(search_size):
         prt(theta_i, 'theta_i')
         prt(theta_i_deg, 'theta_i_deg')
 
-        break
+        # Find indices of negative angles
+        theta_i_neg_idx = np.where(theta_i < 0)[0]
+
+        # Flip vectors pairs at these indices, to ensure all rotations about
+        # this axis are described by positive angles.
+
+        trial_pair_swap_idx = trial_pair_idx_i[theta_i_neg_idx]
+
+        prt(trial_pair_swap_idx, 'trial_pair_swap_idx')
+
+        trial_pair_idx[trial_pair_swap_idx] = (
+            trial_pair_idx[trial_pair_swap_idx][:, ::-1])
+
+        prt(trial_pair_idx, 'trial_pair_idx', t1row)
+
+        theta_i[theta_i_neg_idx] *= -1
+        theta_i_deg[theta_i_neg_idx] *= -1
+
+        prt(theta_i, 'theta_i')
+        prt(theta_i_deg, 'theta_i_deg')
+
+        theta_i_un, theta_i_un_inv, theta_i_un_cnt = np.unique(
+            theta_i.round(decimals=7), return_inverse=True, return_counts=True)
+
+        prt(theta_i_un, 'theta_i_un')
+
+        # Find distinct angular separations which are repeated more than once
+        # trial CSLs can be formed from these
+        trial_csl_pair_idx = []
+
+        for theta_i_un_idx, theta_i_un_ang in enumerate(theta_i_un):
+
+            if theta_i_un_cnt[theta_i_un_idx] == 1:
+                continue
+
+            all_idx = np.where(theta_i_un_inv == theta_i_un_idx)[0]
+            prt(all_idx, 'all_idx')
+
+            # Select just the first two equal-angle vector pairs to form a trial CSL:
+            pair_idx = all_idx[0:2]
+            prt(pair_idx, 'pair_idx')
+
+            trial_csl_pair_idx.append(pair_idx)
+
+        trial_csl_pair_idx = np.array(trial_csl_pair_idx)
+        prt(trial_csl_pair_idx, 'trial_csl_pair_idx')
+
+        # Form trial csl boxes from pairs and rotation axis index:
+
+        # DEBUGGING
+        if len(trial_csl_pair_idx) > 0:
+            break
+        # DEBUGGING
 
 
 if __name__ == '__main__':
